@@ -1,13 +1,17 @@
 use std::{
     collections::HashMap,
     env,
-    io::{Read, Write},
-    os::unix::net::UnixStream,
     path::{Path, PathBuf},
     pin::Pin,
     process::Command,
     task::{Context as TaskContext, Poll},
     time::{Duration, SystemTime, UNIX_EPOCH},
+};
+
+#[cfg(unix)]
+use std::{
+    io::{Read, Write},
+    os::unix::net::UnixStream,
 };
 
 use anyhow::{Context, Result};
@@ -845,6 +849,7 @@ async fn volume_disk_usage(docker: &Docker) -> Result<HashMap<String, VolumeUsag
         .collect())
 }
 
+#[cfg(unix)]
 fn raw_volume_disk_usage(target: &ConnectionTarget) -> Option<HashMap<String, VolumeUsage>> {
     let socket_path = match target {
         ConnectionTarget::DockerHost(host) => host.strip_prefix("unix://")?.to_string(),
@@ -876,6 +881,12 @@ fn raw_volume_disk_usage(target: &ConnectionTarget) -> Option<HashMap<String, Vo
     volume_usage_from_system_df_value(value)
 }
 
+#[cfg(not(unix))]
+fn raw_volume_disk_usage(_target: &ConnectionTarget) -> Option<HashMap<String, VolumeUsage>> {
+    None
+}
+
+#[cfg(unix)]
 fn default_unix_socket_path() -> Option<String> {
     if let Ok(host) = env::var("DOCKER_HOST")
         && let Some(path) = host.strip_prefix("unix://")
