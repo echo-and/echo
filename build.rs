@@ -58,9 +58,9 @@ fn main() -> io::Result<()> {
     for icon in &icons {
         let asset_path = format!("images/docker-icons/{icon}.png");
         let file_path = icon_dir.join(format!("{icon}.png"));
+        let file_path = rust_string_literal_path(&file_path);
         generated.push_str(&format!(
-            "        \"{asset_path}\" => Some(std::borrow::Cow::Borrowed(include_bytes!(\"{}\"))),\n",
-            file_path.display()
+            "        \"{asset_path}\" => Some(std::borrow::Cow::Borrowed(include_bytes!(\"{file_path}\"))),\n",
         ));
     }
     generated.push_str("        _ => None,\n");
@@ -69,6 +69,12 @@ fn main() -> io::Result<()> {
 
     let out_dir = env::var("OUT_DIR").expect("OUT_DIR must be set");
     fs::write(Path::new(&out_dir).join("docker_icons.rs"), generated)
+}
+
+fn rust_string_literal_path(path: &Path) -> String {
+    path.to_string_lossy()
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
 }
 
 fn read_icon_colors(path: &Path) -> io::Result<Vec<(String, u32)>> {
