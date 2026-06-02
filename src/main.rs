@@ -21,7 +21,9 @@ fn main() {
             bridge::Bridge::new().expect("failed to initialize Echo services"),
         ));
 
-        app::install_tray(cx).expect("failed to install Echo tray icon");
+        if let Err(error) = app::install_tray(cx) {
+            eprintln!("failed to install Echo tray icon: {error:#}");
+        }
         cx.bind_keys([
             #[cfg(target_os = "macos")]
             KeyBinding::new("cmd-w", app::HideEcho, None),

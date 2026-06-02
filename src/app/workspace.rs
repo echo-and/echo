@@ -123,6 +123,7 @@ impl EchoApp {
             model.start_connection_monitor(cx);
             model.start_container_sync(cx);
             model.start_resource_preload(cx);
+            model.check_for_updates_if_needed(cx);
         });
     }
 

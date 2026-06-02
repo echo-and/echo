@@ -9,7 +9,7 @@ use gpui::*;
 use gpui_component::ThemeMode;
 
 use crate::{
-    app::{AppFontFamily, AppPreferences, clamp_container_list_width},
+    app::{AppFontFamily, AppPreferences, UpdateStatus, clamp_container_list_width, updates},
     bridge::{
         Bridge, ConnectionStatus, ContainerAction, ContainerDetailSnapshot, ContainerDetailStatus,
         ContainerLogsSnapshot, ContainerLogsStatus, ContainerShellSession, ContainerShellSnapshot,
@@ -42,6 +42,7 @@ pub struct WorkspaceModel {
     pub font_family: AppFontFamily,
     pub auto_check_updates: bool,
     pub notify_new_version: bool,
+    pub update_status: UpdateStatus,
     pub container_list_width: u16,
     pub expanded_compose_projects: BTreeSet<String>,
     pub pending_container_action: Option<PendingContainerAction>,
@@ -94,6 +95,7 @@ pub struct WorkspaceModel {
     _connection_monitor_task: Option<Task<()>>,
     _connection_probe_task: Option<Task<()>>,
     _reconnect_countdown_task: Option<Task<()>>,
+    _update_check_task: Option<Task<()>>,
 }
 
 const CONNECTION_MONITOR_INTERVAL: Duration = Duration::from_secs(5);
@@ -211,6 +213,7 @@ impl WorkspaceModel {
             font_family: preferences.font_family,
             auto_check_updates: preferences.auto_check_updates,
             notify_new_version: preferences.notify_new_version,
+            update_status: UpdateStatus::NotChecked,
             container_list_width: preferences.container_list_width,
             expanded_compose_projects: BTreeSet::new(),
             pending_container_action: None,
@@ -263,6 +266,7 @@ impl WorkspaceModel {
             _connection_monitor_task: None,
             _connection_probe_task: None,
             _reconnect_countdown_task: None,
+            _update_check_task: None,
         }
     }
 
@@ -822,6 +826,9 @@ impl WorkspaceModel {
 
         self.auto_check_updates = enabled;
         let _ = self.save_preferences();
+        if enabled {
+            self.check_for_updates(cx);
+        }
         cx.notify();
     }
 
@@ -833,6 +840,29 @@ impl WorkspaceModel {
         self.notify_new_version = enabled;
         let _ = self.save_preferences();
         cx.notify();
+    }
+
+    pub fn check_for_updates_if_needed(&mut self, cx: &mut Context<Self>) {
+        if self.auto_check_updates {
+            self.check_for_updates(cx);
+        }
+    }
+
+    pub fn check_for_updates(&mut self, cx: &mut Context<Self>) {
+        if self.update_status.is_checking() {
+            return;
+        }
+
+        self.update_status = UpdateStatus::Checking;
+        cx.notify();
+
+        self._update_check_task = Some(cx.spawn(async move |this, cx| {
+            let status = cx.background_spawn(updates::check_for_updates()).await;
+            let _ = this.update(cx, |model, cx| {
+                model.update_status = status;
+                cx.notify();
+            });
+        }));
     }
 
     pub fn set_container_list_width(&mut self, width: u16, cx: &mut Context<Self>) {

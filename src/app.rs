@@ -2,6 +2,7 @@ mod model;
 mod preferences;
 mod services;
 mod tray;
+mod updates;
 mod workspace;
 
 use gpui::actions;
@@ -19,4 +20,8 @@ pub use preferences::{
 };
 pub use services::AppServices;
 pub use tray::{hide_echo_window, install_tray, open_echo_window, show_echo_window};
+pub use updates::{
+    CURRENT_VERSION, GITHUB_LICENSE_URL, GITHUB_RELEASES_URL, GITHUB_REPOSITORY_URL, UpdateStatus,
+    UpdateUnavailableReason,
+};
 pub use workspace::EchoApp;

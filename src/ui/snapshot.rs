@@ -6,7 +6,7 @@ use crate::{
     app::{
         AppFontFamily, ContainerDetailTab, NavSection, NetworkNodeSelection,
         PendingContainerAction, PendingImageAction, PendingNetworkAction, PendingVolumeAction,
-        WorkspaceModel,
+        UpdateStatus, WorkspaceModel,
     },
     bridge::{
         ContainerDetailSnapshot, ContainerLogsSnapshot, ContainerShellSnapshot,
@@ -34,6 +34,7 @@ pub(super) struct WorkspaceSnapshot {
     pub(super) font_family: AppFontFamily,
     pub(super) auto_check_updates: bool,
     pub(super) notify_new_version: bool,
+    pub(super) update_status: UpdateStatus,
     pub(super) container_list_width: u16,
     pub(super) search_text: String,
     pub(super) expanded_compose_projects: BTreeSet<String>,
@@ -98,6 +99,7 @@ impl From<&WorkspaceModel> for WorkspaceSnapshot {
             font_family: model.font_family,
             auto_check_updates: model.auto_check_updates,
             notify_new_version: model.notify_new_version,
+            update_status: model.update_status.clone(),
             container_list_width: model.container_list_width,
             search_text: model.search_text.clone(),
             expanded_compose_projects: model.expanded_compose_projects.clone(),

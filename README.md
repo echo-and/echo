@@ -25,6 +25,18 @@
 
 ## Getting Started
 
+### Download
+
+MVP builds are published on the [GitHub Releases](https://github.com/echo-and/echo/releases) page.
+
+Echo currently ships as unsigned portable archives:
+
+- macOS: `echo-*-apple-darwin.tar.gz`
+- Linux: `echo-*-unknown-linux-gnu.tar.gz`
+- Windows: `echo-*-windows-msvc.zip`
+
+The MVP release does not include installers, code signing, or notarization yet. On macOS and Windows, your operating system may show an unsigned-app warning.
+
 ### Prerequisites
 
 - Rust toolchain with the 2024 edition supported.
@@ -77,7 +89,7 @@ src/
 
 ## Roadmap
 
-- Package builds for macOS, Linux, and Windows.
+- Installers, code signing, and notarized macOS builds.
 - Deeper network and resource inspection.
 - More import/export workflows for images and volumes.
 - Additional Docker-compatible connection targets through the existing Bridge boundary.
@@ -88,9 +100,10 @@ Useful checks while working on Echo:
 
 ```sh
 cargo fmt --check
-cargo check
-cargo test
-cargo clippy -- --deny warnings
+cargo check --locked
+cargo test --locked
+cargo clippy --locked -- --deny warnings
+cargo build --release --locked
 ```
 
 ## Status
@@ -100,3 +113,7 @@ Echo is under active development. The current app is intended for local Docker w
 ## License
 
 Echo is licensed under the Business Source License 1.1. See [LICENSE](LICENSE) for details.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development checks and pull request expectations.

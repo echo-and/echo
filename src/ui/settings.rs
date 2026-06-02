@@ -11,7 +11,10 @@ use gpui_component::{
 use rust_i18n::t;
 
 use crate::{
-    app::{AppFontFamily, EchoApp, WorkspaceModel},
+    app::{
+        AppFontFamily, CURRENT_VERSION, EchoApp, GITHUB_LICENSE_URL, GITHUB_RELEASES_URL,
+        GITHUB_REPOSITORY_URL, UpdateStatus, UpdateUnavailableReason, WorkspaceModel,
+    },
     i18n::AppLocale,
     ui::{
         ICON_SLIDERS_HORIZONTAL,
@@ -26,9 +29,7 @@ use crate::{
 
 const APP_LOGO: &str = "assets/images/Logo.svg";
 const ICON_REFRESH_CW: &str = "assets/icons/refresh-cw.svg";
-const DOCS_URL: &str = "https://echo.place/docs/getting-started";
-const WEBSITE_URL: &str = "https://echo.place";
-const LICENSE_URL: &str = "https://echo.place/license";
+const DOCS_URL: &str = "https://github.com/echo-and/echo#readme";
 
 pub(super) fn settings_page(
     model: Entity<WorkspaceModel>,
@@ -66,7 +67,7 @@ fn settings_pages(model: Entity<WorkspaceModel>, snapshot: &WorkspaceSnapshot) -
     let language_model = model.clone();
     let font_model = model.clone();
     let auto_check_model = model.clone();
-    let notify_model = model;
+    let notify_model = model.clone();
 
     vec![
         SettingPage::new(t!("settings.general").to_string())
@@ -171,6 +172,7 @@ fn settings_pages(model: Entity<WorkspaceModel>, snapshot: &WorkspaceSnapshot) -
                 SettingGroup::new()
                     .title(t!("settings.updates").to_string())
                     .items(vec![
+                        update_status_item(model.clone(), snapshot),
                         SettingItem::new(
                             t!("settings.auto_check_updates").to_string(),
                             SettingField::switch(
@@ -221,20 +223,110 @@ fn settings_pages(model: Entity<WorkspaceModel>, snapshot: &WorkspaceSnapshot) -
                             "settings-docs-link",
                         ),
                         link_setting_item(
-                            t!("settings.website").to_string(),
-                            t!("settings.website_description").to_string(),
-                            WEBSITE_URL,
-                            "settings-website-link",
+                            t!("settings.project").to_string(),
+                            t!("settings.project_description").to_string(),
+                            GITHUB_REPOSITORY_URL,
+                            "settings-project-link",
                         ),
                         link_setting_item(
                             t!("settings.license").to_string(),
                             t!("settings.license_description").to_string(),
-                            LICENSE_URL,
+                            GITHUB_LICENSE_URL,
                             "settings-license-link",
                         ),
                     ]),
             ]),
     ]
+}
+
+fn update_status_item(model: Entity<WorkspaceModel>, snapshot: &WorkspaceSnapshot) -> SettingItem {
+    let status = snapshot.update_status.clone();
+
+    SettingItem::render(move |options, _window, cx| {
+        let (title, description, release_url) = update_status_text(&status);
+        let check_model = model.clone();
+
+        let mut actions = h_flex().gap_2().child(
+            Button::new("settings-check-updates")
+                .icon(Icon::new(Icon::empty()).path(ICON_REFRESH_CW))
+                .label(t!("settings.check_now").to_string())
+                .outline()
+                .with_size(options.size)
+                .disabled(status.is_checking())
+                .on_click(move |_, _window, cx| {
+                    check_model.update(cx, |model, cx| {
+                        model.check_for_updates(cx);
+                    });
+                }),
+        );
+
+        if let Some(url) = release_url {
+            actions = actions.child(
+                Button::new("settings-open-release")
+                    .icon(IconName::ExternalLink)
+                    .label(t!("settings.open_release").to_string())
+                    .outline()
+                    .with_size(options.size)
+                    .on_click(move |_, _window, cx| cx.open_url(&url)),
+            );
+        }
+
+        v_flex().w_full().gap_3().child(
+            h_flex()
+                .w_full()
+                .items_center()
+                .justify_between()
+                .gap_3()
+                .child(
+                    v_flex()
+                        .flex_1()
+                        .gap_1()
+                        .child(Label::new(title).text_sm())
+                        .child(
+                            Label::new(description)
+                                .text_xs()
+                                .text_color(cx.theme().muted_foreground),
+                        ),
+                )
+                .child(actions),
+        )
+    })
+}
+
+fn update_status_text(status: &UpdateStatus) -> (String, String, Option<String>) {
+    let current = t!("settings.current_version", version = CURRENT_VERSION).to_string();
+
+    match status {
+        UpdateStatus::NotChecked => (t!("settings.update_not_checked").to_string(), current, None),
+        UpdateStatus::Checking => (t!("settings.update_checking").to_string(), current, None),
+        UpdateStatus::UpToDate { .. } => {
+            (t!("settings.update_up_to_date").to_string(), current, None)
+        }
+        UpdateStatus::Available {
+            latest_version,
+            release_url,
+            ..
+        } => (
+            t!("settings.update_available", version = latest_version).to_string(),
+            current,
+            Some(release_url.clone()),
+        ),
+        UpdateStatus::Unavailable { reason, .. } => (
+            update_unavailable_title(*reason),
+            current,
+            Some(GITHUB_RELEASES_URL.to_string()),
+        ),
+    }
+}
+
+fn update_unavailable_title(reason: UpdateUnavailableReason) -> String {
+    match reason {
+        UpdateUnavailableReason::NoRelease => t!("settings.update_no_release").to_string(),
+        UpdateUnavailableReason::InvalidRelease => {
+            t!("settings.update_invalid_release").to_string()
+        }
+        UpdateUnavailableReason::RequestFailed => t!("settings.update_request_failed").to_string(),
+    }
 }
 
 fn about_intro_item() -> SettingItem {

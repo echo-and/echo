@@ -595,8 +595,38 @@ settings:
     en: Notify when a new version is found
     zh-CN: 检查到新版本时通知
   notify_new_version_description:
-    en: Show a notification when Echo finds a new version.
-    zh-CN: 当 Echo 发现新版本时显示通知。
+    en: Show the new version notice in Echo when an update is available.
+    zh-CN: 当 Echo 发现新版本时，在应用内显示提示。
+  current_version:
+    en: Current version %{version}
+    zh-CN: 当前版本 %{version}
+  update_not_checked:
+    en: Updates have not been checked this session.
+    zh-CN: 本次会话尚未检查更新。
+  update_checking:
+    en: Checking GitHub Releases...
+    zh-CN: 正在检查 GitHub Releases...
+  update_up_to_date:
+    en: Echo is up to date.
+    zh-CN: Echo 已是最新版本。
+  update_available:
+    en: Echo %{version} is available.
+    zh-CN: Echo %{version} 已可用。
+  update_no_release:
+    en: No GitHub release is available yet.
+    zh-CN: 暂无可用的 GitHub Release。
+  update_invalid_release:
+    en: The latest release version could not be read.
+    zh-CN: 无法读取最新 Release 版本。
+  update_request_failed:
+    en: Unable to check GitHub Releases.
+    zh-CN: 无法检查 GitHub Releases。
+  check_now:
+    en: Check now
+    zh-CN: 立即检查
+  open_release:
+    en: Open release
+    zh-CN: 打开 Release
   about:
     en: About
     zh-CN: 关于
@@ -612,12 +642,12 @@ settings:
   documentation_description:
     en: Open the Echo getting started documentation.
     zh-CN: 打开 Echo 快速开始文档。
-  website:
-    en: Website
-    zh-CN: 官网
-  website_description:
-    en: Open the Echo official website.
-    zh-CN: 打开 Echo 官方网站。
+  project:
+    en: GitHub Project
+    zh-CN: GitHub 项目
+  project_description:
+    en: Open the Echo GitHub repository.
+    zh-CN: 打开 Echo GitHub 仓库。
   license:
     en: License
     zh-CN: License
