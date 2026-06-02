@@ -1,0 +1,8 @@
+{
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "colorthief": "^2.6.0",
+    "pngjs": "^7.0.0"
+  }
+}

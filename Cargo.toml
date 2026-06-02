@@ -1,0 +1,28 @@
+[package]
+name = "echo"
+version = "0.1.0"
+edition = "2024"
+license = "BUSL-1.1"
+
+[dependencies]
+anyhow = "1.0.102"
+alacritty_terminal = "0.26.0"
+bollard = { version = "0.21.0", features = ["time"] }
+dirs = "6.0.0"
+flume = "0.12.0"
+flate2 = "1.1.9"
+futures-util = "0.3.32"
+gpui = { git = "https://github.com/zed-industries/zed" }
+gpui_platform = { git = "https://github.com/zed-industries/zed", features = ["font-kit", "x11", "wayland", "runtime_shaders"] }
+gpui-component = { git = "https://github.com/longbridge/gpui-component" }
+gpui-component-assets = { git = "https://github.com/longbridge/gpui-component" }
+image = { version = "0.25.10", default-features = false, features = ["ico", "png"] }
+parking_lot = "0.12.5"
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.145"
+strip-ansi-escapes = "0.2.1"
+rust-i18n = "4"
+time = { version = "0.3.44", features = ["formatting"] }
+tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros", "sync", "time", "fs", "io-util"] }
+tokio-util = { version = "0.7.18", features = ["io"] }
+tray-icon = "0.24.0"
