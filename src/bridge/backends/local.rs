@@ -1,18 +1,15 @@
 use std::{
     collections::HashMap,
     env,
+    io::{Read, Write},
     path::{Path, PathBuf},
     pin::Pin,
-    process::Command,
     task::{Context as TaskContext, Poll},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 #[cfg(unix)]
-use std::{
-    io::{Read, Write},
-    os::unix::net::UnixStream,
-};
+use std::{os::unix::net::UnixStream, process::Command};
 
 use anyhow::{Context, Result};
 use bollard::{
