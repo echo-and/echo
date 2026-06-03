@@ -20,18 +20,22 @@ jobs:
             target: x86_64-apple-darwin
             archive: tar.gz
             exe: ""
+            rustflags: ""
           - os: macos-latest
             target: aarch64-apple-darwin
             archive: tar.gz
             exe: ""
+            rustflags: ""
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             archive: tar.gz
             exe: ""
+            rustflags: ""
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             archive: zip
             exe: ".exe"
+            rustflags: "-C target-feature=+crt-static"
 
     steps:
       - name: Checkout
@@ -84,17 +88,101 @@ jobs:
         run: rustup target add ${{ matrix.target }}
 
       - name: Build release binary
+        env:
+          RUSTFLAGS: ${{ matrix.rustflags }}
         run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Check Windows runtime dependencies
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $exe = "target/${{ matrix.target }}/release/echo${{ matrix.exe }}"
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vsPath) {
+            throw "Visual Studio Build Tools were not found"
+          }
+
+          $vcvars = Join-Path $vsPath "VC\Auxiliary\Build\vcvars64.bat"
+          $dump = cmd /c "`"$vcvars`" >nul && dumpbin /dependents `"$exe`""
+          $dump | Write-Output
+
+          if ($dump -match "VCRUNTIME|MSVCP|api-ms-win-crt|ucrtbase") {
+            throw "Windows release binary dynamically depends on the Visual C++ Runtime"
+          }
 
       - name: Package artifact
         shell: bash
         run: |
           set -euo pipefail
           tag="${GITHUB_REF_NAME}"
+          version="${tag#v}"
           artifact="echo-${tag}-${{ matrix.target }}"
           package_dir="dist/${artifact}"
           mkdir -p "${package_dir}"
-          cp "target/${{ matrix.target }}/release/echo${{ matrix.exe }}" "${package_dir}/"
+
+          if [[ "${{ runner.os }}" == "macOS" ]]; then
+            app_dir="${package_dir}/Echo.app"
+            mkdir -p "${app_dir}/Contents/MacOS" "${app_dir}/Contents/Resources"
+            cp "target/${{ matrix.target }}/release/echo" "${app_dir}/Contents/MacOS/Echo"
+            chmod +x "${app_dir}/Contents/MacOS/Echo"
+            iconset_dir="$(mktemp -d)"
+            mkdir -p "${iconset_dir}/echo.iconset"
+            sips -z 16 16 assets/images/Icon.png --out "${iconset_dir}/echo.iconset/icon_16x16.png" >/dev/null
+            sips -z 32 32 assets/images/Icon.png --out "${iconset_dir}/echo.iconset/icon_16x16@2x.png" >/dev/null
+            sips -z 32 32 assets/images/Icon.png --out "${iconset_dir}/echo.iconset/icon_32x32.png" >/dev/null
+            sips -z 64 64 assets/images/Icon.png --out "${iconset_dir}/echo.iconset/icon_32x32@2x.png" >/dev/null
+            sips -z 128 128 assets/images/Icon.png --out "${iconset_dir}/echo.iconset/icon_128x128.png" >/dev/null
+            sips -z 256 256 assets/images/Icon.png --out "${iconset_dir}/echo.iconset/icon_128x128@2x.png" >/dev/null
+            sips -z 256 256 assets/images/Icon.png --out "${iconset_dir}/echo.iconset/icon_256x256.png" >/dev/null
+            sips -z 512 512 assets/images/Icon.png --out "${iconset_dir}/echo.iconset/icon_256x256@2x.png" >/dev/null
+            sips -z 512 512 assets/images/Icon.png --out "${iconset_dir}/echo.iconset/icon_512x512.png" >/dev/null
+            sips -z 1024 1024 assets/images/Icon.png --out "${iconset_dir}/echo.iconset/icon_512x512@2x.png" >/dev/null
+            iconutil -c icns "${iconset_dir}/echo.iconset" -o "${app_dir}/Contents/Resources/Echo.icns"
+            rm -rf "${iconset_dir}"
+            {
+              printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>'
+              printf '%s\n' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">'
+              printf '%s\n' '<plist version="1.0">'
+              printf '%s\n' '<dict>'
+              printf '%s\n' '  <key>CFBundleDevelopmentRegion</key>'
+              printf '%s\n' '  <string>en</string>'
+              printf '%s\n' '  <key>CFBundleDisplayName</key>'
+              printf '%s\n' '  <string>Echo</string>'
+              printf '%s\n' '  <key>CFBundleExecutable</key>'
+              printf '%s\n' '  <string>Echo</string>'
+              printf '%s\n' '  <key>CFBundleIconFile</key>'
+              printf '%s\n' '  <string>Echo.icns</string>'
+              printf '%s\n' '  <key>CFBundleIdentifier</key>'
+              printf '%s\n' '  <string>and.echo.echo</string>'
+              printf '%s\n' '  <key>CFBundleName</key>'
+              printf '%s\n' '  <string>Echo</string>'
+              printf '%s\n' '  <key>CFBundlePackageType</key>'
+              printf '%s\n' '  <string>APPL</string>'
+              printf '%s\n' '  <key>CFBundleShortVersionString</key>'
+              printf '%s\n' "  <string>${version}</string>"
+              printf '%s\n' '  <key>CFBundleVersion</key>'
+              printf '%s\n' "  <string>${version}</string>"
+              printf '%s\n' '  <key>LSApplicationCategoryType</key>'
+              printf '%s\n' '  <string>public.app-category.developer-tools</string>'
+              printf '%s\n' '  <key>NSHighResolutionCapable</key>'
+              printf '%s\n' '  <true/>'
+              printf '%s\n' '</dict>'
+              printf '%s\n' '</plist>'
+            } > "${app_dir}/Contents/Info.plist"
+          elif [[ "${{ runner.os }}" == "Linux" ]]; then
+            mkdir -p "${package_dir}/bin" \
+              "${package_dir}/share/applications" \
+              "${package_dir}/share/icons/hicolor/1024x1024/apps"
+            cp "target/${{ matrix.target }}/release/echo" "${package_dir}/bin/echo"
+            chmod +x "${package_dir}/bin/echo"
+            cp assets/linux/echo.desktop "${package_dir}/share/applications/echo.desktop"
+            cp assets/images/Icon.png "${package_dir}/share/icons/hicolor/1024x1024/apps/echo.png"
+          else
+            cp "target/${{ matrix.target }}/release/echo${{ matrix.exe }}" "${package_dir}/"
+            cp assets/images/app-icon.ico "${package_dir}/"
+          fi
+
           cp README.md LICENSE CHANGELOG.md "${package_dir}/"
 
           if [[ "${{ matrix.archive }}" == "zip" ]]; then

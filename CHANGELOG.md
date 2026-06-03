@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.1.1
+
+- Fix Windows release archives so Echo does not require a separately installed Visual C++ Runtime.
+
 ## v0.1.0 - MVP
 
 - Initial MVP release of Echo.

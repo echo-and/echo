@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Echo
+Comment=Manage local Docker environments
+Exec=echo
+Icon=echo
+Terminal=false
+Categories=Development;

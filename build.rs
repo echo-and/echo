@@ -1,6 +1,8 @@
 use std::{env, fs, io, path::Path};
 
 fn main() -> io::Result<()> {
+    configure_windows_resources();
+
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR must be set");
     let icon_dir = Path::new(&manifest_dir).join("assets/images/docker-icons");
     let colors_path = icon_dir.join("colors.json");
@@ -103,4 +105,15 @@ fn read_icon_colors(path: &Path) -> io::Result<Vec<(String, u32)>> {
 
     colors.sort_by(|left, right| left.0.cmp(&right.0));
     Ok(colors)
+}
+
+fn configure_windows_resources() {
+    #[cfg(target_os = "windows")]
+    {
+        println!("cargo:rerun-if-changed=assets/windows/app.rc");
+        println!("cargo:rerun-if-changed=assets/images/app-icon.ico");
+        embed_resource::compile("assets/windows/app.rc", embed_resource::NONE)
+            .manifest_optional()
+            .unwrap();
+    }
 }
