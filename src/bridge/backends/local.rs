@@ -943,6 +943,7 @@ fn volume_usage_from_value(value: Value) -> Option<(String, VolumeUsage)> {
     volume_usage_from_fields(size, ref_count).map(|usage| (name, usage))
 }
 
+#[cfg_attr(not(unix), allow(dead_code))]
 fn volume_usage_from_system_df_value(value: Value) -> Option<HashMap<String, VolumeUsage>> {
     value
         .get("Volumes")
@@ -962,6 +963,7 @@ fn volume_usage_from_system_df_value(value: Value) -> Option<HashMap<String, Vol
         })
 }
 
+#[cfg_attr(not(unix), allow(dead_code))]
 fn decode_chunked_body(body: &str) -> Option<String> {
     let mut decoded = String::new();
     let mut rest = body;

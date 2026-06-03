@@ -60,6 +60,7 @@ jobs:
             libvulkan1 \
             libwayland-dev \
             libx11-xcb-dev \
+            libxdo-dev \
             libxkbcommon-x11-dev \
             libzstd-dev \
             lld \
