@@ -1,6 +1,12 @@
 use std::{env, process::Command};
 
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
 use crate::domain::ConnectionTarget;
+
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 pub fn resolve_current_target() -> ConnectionTarget {
     if let Ok(host) = env::var("DOCKER_HOST")
@@ -15,7 +21,10 @@ pub fn resolve_current_target() -> ConnectionTarget {
 }
 
 fn docker_context_host() -> Option<String> {
-    let output = Command::new("docker")
+    let mut command = Command::new("docker");
+    hide_command_window(&mut command);
+
+    let output = command
         .args([
             "context",
             "inspect",
@@ -41,6 +50,14 @@ fn parse_context_host(output: &str) -> Option<String> {
         Some(host.to_string())
     }
 }
+
+#[cfg(windows)]
+fn hide_command_window(command: &mut Command) {
+    command.creation_flags(CREATE_NO_WINDOW);
+}
+
+#[cfg(not(windows))]
+fn hide_command_window(_command: &mut Command) {}
 
 #[cfg(test)]
 mod tests {

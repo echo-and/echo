@@ -37,6 +37,8 @@ Echo currently ships as unsigned portable archives:
 
 The MVP release does not include installers, code signing, or notarization yet. On macOS and Windows, your operating system may show an unsigned-app warning.
 
+Manual validation has currently been completed only on macOS. Linux and Windows builds are still being refined and have not yet gone through the same level of manual runtime verification.
+
 ### Prerequisites
 
 - Rust toolchain with the 2024 edition supported.
