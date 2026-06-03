@@ -33,7 +33,7 @@ use bollard::{
 use flate2::read::GzDecoder;
 use futures_util::{Stream, StreamExt};
 use serde_json::Value;
-use tokio::{fs::File, io::AsyncWrite};
+use tokio::{fs::File, io::AsyncWrite, time::timeout};
 use tokio_util::io::ReaderStream;
 
 use crate::bridge::NetworkCreateConfig;
@@ -112,6 +112,15 @@ pub async fn list_containers(target: ConnectionTarget) -> Result<Vec<ContainerSu
             )
         })
         .collect())
+}
+
+pub async fn ping(target: ConnectionTarget) -> Result<()> {
+    let docker = connect(target)?;
+    timeout(Duration::from_secs(1), docker.ping())
+        .await
+        .context("Docker ping timed out")?
+        .context("Docker ping failed")?;
+    Ok(())
 }
 
 fn compose_metadata(labels: &HashMap<String, String>) -> Option<ComposeMetadata> {

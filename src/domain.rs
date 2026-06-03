@@ -30,8 +30,47 @@ impl ActiveConnection {
         }
     }
 
+    pub fn from_backend(backend: &DockerBackendSummary) -> Self {
+        Self {
+            id: backend.id.clone(),
+            name: backend.name.clone(),
+            target: backend.target.clone(),
+        }
+    }
+
     pub fn endpoint(&self) -> String {
         self.target.endpoint()
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DockerBackendStatus {
+    Running,
+    Unavailable,
+    Unknown,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DockerBackendSummary {
+    pub id: String,
+    pub name: String,
+    pub endpoint: String,
+    pub target: ConnectionTarget,
+    pub status: DockerBackendStatus,
+}
+
+impl DockerBackendSummary {
+    pub fn new(name: String, target: ConnectionTarget) -> Self {
+        let id = target.stable_id();
+        let endpoint = target.endpoint();
+
+        Self {
+            id,
+            name,
+            endpoint,
+            target,
+            status: DockerBackendStatus::Unknown,
+        }
     }
 }
 

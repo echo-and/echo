@@ -17,8 +17,8 @@ use crate::{
         NetworkSnapshot, NetworkThroughputSnapshot, NetworkThroughputStatus, VolumeSnapshot,
     },
     domain::{
-        ActiveConnection, ContainerSummary, ImageSummary, NetworkSummary, NetworkThroughputTarget,
-        VolumeSummary,
+        ActiveConnection, ContainerSummary, DockerBackendSummary, ImageSummary, NetworkSummary,
+        NetworkThroughputTarget, VolumeSummary,
     },
     i18n::{self, AppLocale},
 };
@@ -26,6 +26,8 @@ use crate::{
 pub struct WorkspaceModel {
     bridge: Arc<Bridge>,
     pub active_connection: ActiveConnection,
+    pub docker_backend_id: Option<String>,
+    pub docker_backends: Vec<DockerBackendSummary>,
     pub containers: Vec<ContainerSummary>,
     pub selected_container_id: Option<String>,
     pub search_text: String,
@@ -192,11 +194,19 @@ impl WorkspaceModel {
     pub fn new(bridge: Arc<Bridge>, preferences: AppPreferences, _cx: &mut Context<Self>) -> Self {
         i18n::set_locale(preferences.locale);
 
-        let active_connection = bridge.resolve_active_connection();
+        let mut docker_backend_id = preferences.docker_backend_id.clone();
+        let (active_connection, missing_backend) =
+            bridge.resolve_active_connection_for(docker_backend_id.as_deref());
+        if missing_backend {
+            docker_backend_id = None;
+        }
+        let docker_backends = bridge.discover_docker_backend_candidates();
 
         Self {
             bridge,
             active_connection,
+            docker_backend_id,
+            docker_backends,
             containers: Vec::new(),
             selected_container_id: None,
             search_text: String::new(),
@@ -336,15 +346,36 @@ impl WorkspaceModel {
         let bridge = self.bridge.clone();
         self._connection_monitor_task = Some(cx.spawn(async move |this, cx| {
             loop {
-                let active_connection = cx
+                let docker_backend_id = this
+                    .read_with(cx, |model, _| model.docker_backend_id.clone())
+                    .ok()
+                    .flatten();
+                let requested_backend_id = docker_backend_id.clone();
+
+                let (active_connection, missing_backend, docker_backends) = cx
                     .background_spawn({
                         let bridge = bridge.clone();
-                        async move { bridge.resolve_active_connection() }
+                        async move {
+                            let (active_connection, missing_backend) =
+                                bridge.resolve_active_connection_for(docker_backend_id.as_deref());
+                            let docker_backends = bridge.discover_docker_backends();
+                            (active_connection, missing_backend, docker_backends)
+                        }
                     })
                     .await;
 
                 let _ = this.update(cx, |model, cx| {
+                    model.docker_backends = docker_backends;
+                    if model.docker_backend_id != requested_backend_id {
+                        cx.notify();
+                        return;
+                    }
+                    if missing_backend {
+                        model.docker_backend_id = None;
+                        let _ = model.save_preferences();
+                    }
                     model.apply_detected_connection(active_connection, cx);
+                    cx.notify();
                 });
 
                 cx.background_executor()
@@ -556,15 +587,27 @@ impl WorkspaceModel {
 
         let bridge = self.bridge.clone();
         self._connection_probe_task = Some(cx.spawn(async move |this, cx| {
-            let active_connection = cx
-                .background_spawn({
-                    let bridge = bridge.clone();
-                    async move { bridge.resolve_active_connection() }
-                })
-                .await;
+            let docker_backend_id = this
+                .read_with(cx, |model, _| model.docker_backend_id.clone())
+                .ok()
+                .flatten();
+            let requested_backend_id = docker_backend_id.clone();
+
+            let resolution = cx.background_spawn({
+                let bridge = bridge.clone();
+                async move { bridge.resolve_active_connection_for(docker_backend_id.as_deref()) }
+            });
+            let (active_connection, missing_backend) = resolution.await;
 
             let _ = this.update(cx, |model, cx| {
                 model._connection_probe_task = None;
+                if model.docker_backend_id != requested_backend_id {
+                    return;
+                }
+                if missing_backend {
+                    model.docker_backend_id = None;
+                    let _ = model.save_preferences();
+                }
                 model.apply_detected_connection(active_connection, cx);
             });
         }));
@@ -817,6 +860,32 @@ impl WorkspaceModel {
         self.font_family = font_family;
         let _ = self.save_preferences();
         cx.notify();
+    }
+
+    pub fn set_docker_backend_selection(
+        &mut self,
+        docker_backend_id: Option<String>,
+        cx: &mut Context<Self>,
+    ) {
+        if self.docker_backend_id == docker_backend_id {
+            return;
+        }
+
+        self.docker_backend_id = docker_backend_id;
+        let (active_connection, missing_backend) = self
+            .bridge
+            .resolve_active_connection_for(self.docker_backend_id.as_deref());
+        if missing_backend {
+            self.docker_backend_id = None;
+        }
+        let _ = self.save_preferences();
+
+        if self.active_connection.id == active_connection.id {
+            cx.notify();
+            return;
+        }
+
+        self.set_active_connection(active_connection, cx);
     }
 
     pub fn set_auto_check_updates(&mut self, enabled: bool, cx: &mut Context<Self>) {
@@ -1602,6 +1671,7 @@ impl WorkspaceModel {
             auto_check_updates: self.auto_check_updates,
             notify_new_version: self.notify_new_version,
             container_list_width: self.container_list_width,
+            docker_backend_id: self.docker_backend_id.clone(),
         }
         .save()
     }

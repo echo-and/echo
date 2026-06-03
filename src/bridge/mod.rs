@@ -11,6 +11,7 @@ use std::{
 };
 
 use anyhow::{Context, Result};
+use futures_util::future::join_all;
 use tokio::{runtime::Runtime, sync::watch};
 
 pub use types::{
@@ -20,7 +21,10 @@ pub use types::{
     NetworkThroughputStatus, VolumeSnapshot,
 };
 
-use crate::domain::{ActiveConnection, ConnectionTarget, NetworkThroughputTarget};
+use crate::domain::{
+    ActiveConnection, ConnectionTarget, DockerBackendStatus, DockerBackendSummary,
+    NetworkThroughputTarget,
+};
 
 pub use self::session::ContainerShellSession;
 
@@ -55,8 +59,67 @@ impl Bridge {
         })
     }
 
-    pub fn resolve_active_connection(&self) -> ActiveConnection {
-        ActiveConnection::local_current(resolver::resolve_current_target())
+    pub fn resolve_active_connection_for(
+        &self,
+        docker_backend_id: Option<&str>,
+    ) -> (ActiveConnection, bool) {
+        let backends = resolver::discover_backend_candidates();
+
+        if let Some(backend_id) = docker_backend_id {
+            if let Some(backend) = backends.iter().find(|backend| backend.id == backend_id) {
+                return (ActiveConnection::from_backend(backend), false);
+            }
+
+            return (self.automatic_active_connection_from(&backends), true);
+        }
+
+        (self.automatic_active_connection_from(&backends), false)
+    }
+
+    pub fn discover_docker_backends(&self) -> Vec<DockerBackendSummary> {
+        let mut backends = resolver::discover_backend_candidates();
+
+        let statuses = self.runtime.block_on(async {
+            let probes = backends.iter().map(|backend| {
+                let id = backend.id.clone();
+                let target = backend.target.clone();
+                async move {
+                    let status = match backends::local::ping(target).await {
+                        Ok(()) => DockerBackendStatus::Running,
+                        Err(_) => DockerBackendStatus::Unavailable,
+                    };
+                    (id, status)
+                }
+            });
+            join_all(probes).await
+        });
+        let statuses = statuses.into_iter().collect::<HashMap<_, _>>();
+
+        for backend in &mut backends {
+            if let Some(status) = statuses.get(&backend.id) {
+                backend.status = *status;
+            }
+        }
+
+        backends
+    }
+
+    pub fn discover_docker_backend_candidates(&self) -> Vec<DockerBackendSummary> {
+        resolver::discover_backend_candidates()
+    }
+
+    fn automatic_active_connection_from(
+        &self,
+        backends: &[DockerBackendSummary],
+    ) -> ActiveConnection {
+        let target = resolver::resolve_current_target();
+        let target_id = target.stable_id();
+
+        backends
+            .iter()
+            .find(|backend| backend.id == target_id)
+            .map(ActiveConnection::from_backend)
+            .unwrap_or_else(|| ActiveConnection::local_current(target))
     }
 
     pub fn volume_name_from_archive_path(path: &Path) -> String {

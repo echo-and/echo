@@ -582,6 +582,24 @@ settings:
   docker_socket:
     en: Socket
     zh-CN: Socket
+  docker_backend_auto:
+    en: Auto
+    zh-CN: 自动
+  docker_backend_current:
+    en: "Current: %{endpoint}"
+    zh-CN: "当前：%{endpoint}"
+  docker_backend_selected:
+    en: Selected
+    zh-CN: 已选
+  docker_backend_running:
+    en: Running
+    zh-CN: 运行中
+  docker_backend_unavailable:
+    en: Unavailable
+    zh-CN: 不可用
+  docker_backend_unknown:
+    en: Unknown
+    zh-CN: 未知
   updates:
     en: Updates
     zh-CN: 更新

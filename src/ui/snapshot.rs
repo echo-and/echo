@@ -12,7 +12,7 @@ use crate::{
         ContainerDetailSnapshot, ContainerLogsSnapshot, ContainerShellSnapshot,
         NetworkThroughputSnapshot,
     },
-    domain::{ContainerSummary, ImageSummary, NetworkSummary, VolumeSummary},
+    domain::{ContainerSummary, DockerBackendSummary, ImageSummary, NetworkSummary, VolumeSummary},
     i18n::AppLocale,
 };
 
@@ -24,6 +24,8 @@ pub(super) struct WorkspaceSnapshot {
     pub(super) selected_container: Option<ContainerSummary>,
     pub(super) active_connection_name: String,
     pub(super) active_connection_endpoint: String,
+    pub(super) docker_backend_id: Option<String>,
+    pub(super) docker_backends: Vec<DockerBackendSummary>,
     pub(super) error: Option<String>,
     pub(super) refresh_error: Option<String>,
     pub(super) is_loading: bool,
@@ -89,6 +91,8 @@ impl From<&WorkspaceModel> for WorkspaceSnapshot {
             selected_container,
             active_connection_name: model.active_connection.name.clone(),
             active_connection_endpoint: model.active_connection.endpoint(),
+            docker_backend_id: model.docker_backend_id.clone(),
+            docker_backends: model.docker_backends.clone(),
             error: model.error.clone(),
             refresh_error: model.refresh_error.clone(),
             is_loading: model.is_loading,

@@ -5,6 +5,7 @@ use gpui_component::{
     group_box::GroupBoxVariant,
     h_flex,
     label::Label,
+    menu::{DropdownMenu as _, PopupMenuItem},
     setting::{SettingField, SettingGroup, SettingItem, SettingPage, Settings},
     v_flex,
 };
@@ -15,6 +16,7 @@ use crate::{
         AppFontFamily, CURRENT_VERSION, EchoApp, GITHUB_LICENSE_URL, GITHUB_RELEASES_URL,
         GITHUB_REPOSITORY_URL, UpdateStatus, UpdateUnavailableReason, WorkspaceModel,
     },
+    domain::{DockerBackendStatus, DockerBackendSummary},
     i18n::AppLocale,
     ui::{
         ICON_SLIDERS_HORIZONTAL,
@@ -68,6 +70,7 @@ fn settings_pages(model: Entity<WorkspaceModel>, snapshot: &WorkspaceSnapshot) -
     let font_model = model.clone();
     let auto_check_model = model.clone();
     let notify_model = model.clone();
+    let docker_model = model.clone();
 
     vec![
         SettingPage::new(t!("settings.general").to_string())
@@ -162,7 +165,7 @@ fn settings_pages(model: Entity<WorkspaceModel>, snapshot: &WorkspaceSnapshot) -
                     ]),
                 SettingGroup::new()
                     .title(t!("settings.docker").to_string())
-                    .items(vec![docker_socket_item(snapshot)]),
+                    .items(vec![docker_socket_item(docker_model, snapshot)]),
             ]),
         SettingPage::new(t!("settings.updates").to_string())
             .header_style(&StyleRefinement::default().hidden())
@@ -349,15 +352,25 @@ fn about_intro_item() -> SettingItem {
     })
 }
 
-fn docker_socket_item(snapshot: &WorkspaceSnapshot) -> SettingItem {
+fn docker_socket_item(model: Entity<WorkspaceModel>, snapshot: &WorkspaceSnapshot) -> SettingItem {
     let name = docker_socket_display_name(
         &snapshot.active_connection_name,
         &snapshot.active_connection_endpoint,
     );
     let endpoint = docker_socket_address(&snapshot.active_connection_endpoint);
-    let current = format!("Current: {endpoint}");
+    let current = t!("settings.docker_backend_current", endpoint = endpoint).to_string();
+    let active_backend_id = snapshot.active_connection_endpoint.clone();
+    let selected_backend_id = snapshot.docker_backend_id.clone();
+    let backends = snapshot.docker_backends.clone();
+    let button_label = selected_backend_label(snapshot, &name);
 
     SettingItem::render(move |options, _window, cx| {
+        let menu_model = model.clone();
+        let menu_backends = backends.clone();
+        let selected_backend_id = selected_backend_id.clone();
+        let active_backend_id = active_backend_id.clone();
+        let auto_label = auto_backend_label(&menu_backends, &active_backend_id);
+
         v_flex()
             .w_full()
             .gap_2()
@@ -371,15 +384,55 @@ fn docker_socket_item(snapshot: &WorkspaceSnapshot) -> SettingItem {
                         v_flex()
                             .flex_1()
                             .gap_1()
-                            .child(Label::new(t!("settings.docker_socket").to_string()).text_sm()),
+                            .child(Label::new(t!("settings.docker_backend").to_string()).text_sm()),
                     )
                     .child(
                         Button::new("settings-docker-socket")
-                            .label(name.clone())
+                            .label(button_label.clone())
                             .dropdown_caret(true)
                             .outline()
                             .with_size(options.size)
-                            .disabled(true),
+                            .dropdown_menu_with_anchor(Anchor::BottomRight, move |menu, _, _| {
+                                let auto_model = menu_model.clone();
+                                let selected_backend_id = selected_backend_id.clone();
+                                let mut menu = menu.min_w(300.).item(
+                                    PopupMenuItem::new(menu_item_label(
+                                        &auto_label,
+                                        selected_backend_id.is_none(),
+                                    ))
+                                    .on_click(
+                                        move |_, _, cx| {
+                                            auto_model.update(cx, |model, cx| {
+                                                model.set_docker_backend_selection(None, cx);
+                                            });
+                                        },
+                                    ),
+                                );
+
+                                for backend in &menu_backends {
+                                    let backend_model = menu_model.clone();
+                                    let backend_id = backend.id.clone();
+                                    let selected =
+                                        selected_backend_id.as_deref() == Some(backend.id.as_str());
+                                    menu =
+                                        menu.item(
+                                            PopupMenuItem::new(menu_item_label(
+                                                &docker_backend_label(backend),
+                                                selected,
+                                            ))
+                                            .on_click(move |_, _, cx| {
+                                                backend_model.update(cx, |model, cx| {
+                                                    model.set_docker_backend_selection(
+                                                        Some(backend_id.clone()),
+                                                        cx,
+                                                    );
+                                                });
+                                            }),
+                                        );
+                                }
+
+                                menu
+                            }),
                     ),
             )
             .child(
@@ -389,6 +442,73 @@ fn docker_socket_item(snapshot: &WorkspaceSnapshot) -> SettingItem {
                     .text_color(cx.theme().muted_foreground),
             )
     })
+}
+
+fn selected_backend_label(snapshot: &WorkspaceSnapshot, active_name: &str) -> String {
+    if let Some(backend_id) = snapshot.docker_backend_id.as_deref()
+        && let Some(backend) = snapshot
+            .docker_backends
+            .iter()
+            .find(|backend| backend.id == backend_id)
+    {
+        return docker_backend_label(backend);
+    }
+
+    if snapshot.docker_backend_id.is_some() {
+        return t!("settings.docker_backend_auto").to_string();
+    }
+
+    let status = snapshot
+        .docker_backends
+        .iter()
+        .find(|backend| backend.endpoint == snapshot.active_connection_endpoint)
+        .map(|backend| backend.status)
+        .unwrap_or(DockerBackendStatus::Unknown);
+    format!(
+        "{} ({active_name} · {})",
+        t!("settings.docker_backend_auto"),
+        docker_backend_status_label(status)
+    )
+}
+
+fn auto_backend_label(backends: &[DockerBackendSummary], active_endpoint: &str) -> String {
+    let active = backends
+        .iter()
+        .find(|backend| backend.endpoint == active_endpoint)
+        .map(|backend| {
+            format!(
+                "{} · {}",
+                backend.name,
+                docker_backend_status_label(backend.status)
+            )
+        })
+        .unwrap_or_else(|| t!("settings.docker_backend_unknown").to_string());
+
+    format!("{} ({active})", t!("settings.docker_backend_auto"))
+}
+
+fn docker_backend_label(backend: &DockerBackendSummary) -> String {
+    format!(
+        "{} · {}",
+        backend.name,
+        docker_backend_status_label(backend.status)
+    )
+}
+
+fn docker_backend_status_label(status: DockerBackendStatus) -> String {
+    match status {
+        DockerBackendStatus::Running => t!("settings.docker_backend_running").to_string(),
+        DockerBackendStatus::Unavailable => t!("settings.docker_backend_unavailable").to_string(),
+        DockerBackendStatus::Unknown => t!("settings.docker_backend_unknown").to_string(),
+    }
+}
+
+fn menu_item_label(label: &str, selected: bool) -> String {
+    if selected {
+        format!("{} · {label}", t!("settings.docker_backend_selected"))
+    } else {
+        label.to_string()
+    }
 }
 
 fn link_setting_item(

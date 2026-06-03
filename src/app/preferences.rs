@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::i18n::AppLocale;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AppPreferences {
     pub locale: AppLocale,
     pub theme_mode: ThemeMode,
@@ -17,6 +17,7 @@ pub struct AppPreferences {
     pub auto_check_updates: bool,
     pub notify_new_version: bool,
     pub container_list_width: u16,
+    pub docker_backend_id: Option<String>,
 }
 
 impl Default for AppPreferences {
@@ -28,6 +29,7 @@ impl Default for AppPreferences {
             auto_check_updates: true,
             notify_new_version: true,
             container_list_width: DEFAULT_CONTAINER_LIST_WIDTH,
+            docker_backend_id: None,
         }
     }
 }
@@ -127,13 +129,13 @@ impl AppPreferences {
         }
 
         let mut file = fs::File::create(path)?;
-        let payload = serde_json::to_string_pretty(&StoredPreferences::from(*self))
+        let payload = serde_json::to_string_pretty(&StoredPreferences::from(self))
             .unwrap_or_else(|_| "{}".to_string());
         file.write_all(payload.as_bytes())
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 struct StoredPreferences {
     locale: AppLocale,
     theme_mode: StoredThemeMode,
@@ -145,6 +147,8 @@ struct StoredPreferences {
     notify_new_version: bool,
     #[serde(default = "default_container_list_width")]
     container_list_width: u16,
+    #[serde(default)]
+    docker_backend_id: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -153,8 +157,8 @@ enum StoredThemeMode {
     Dark,
 }
 
-impl From<AppPreferences> for StoredPreferences {
-    fn from(value: AppPreferences) -> Self {
+impl From<&AppPreferences> for StoredPreferences {
+    fn from(value: &AppPreferences) -> Self {
         Self {
             locale: value.locale,
             theme_mode: value.theme_mode.into(),
@@ -162,6 +166,7 @@ impl From<AppPreferences> for StoredPreferences {
             auto_check_updates: value.auto_check_updates,
             notify_new_version: value.notify_new_version,
             container_list_width: clamp_container_list_width(value.container_list_width),
+            docker_backend_id: value.docker_backend_id.clone(),
         }
     }
 }
@@ -175,6 +180,7 @@ impl From<StoredPreferences> for AppPreferences {
             auto_check_updates: value.auto_check_updates,
             notify_new_version: value.notify_new_version,
             container_list_width: clamp_container_list_width(value.container_list_width),
+            docker_backend_id: value.docker_backend_id,
         }
     }
 }
@@ -243,8 +249,9 @@ mod tests {
             auto_check_updates: false,
             notify_new_version: false,
             container_list_width: 320,
+            docker_backend_id: Some("docker:host:unix:///tmp/docker.sock".to_string()),
         };
-        let json = serde_json::to_string(&StoredPreferences::from(prefs)).unwrap();
+        let json = serde_json::to_string(&StoredPreferences::from(&prefs)).unwrap();
         let decoded: AppPreferences = serde_json::from_str::<StoredPreferences>(&json)
             .map(AppPreferences::from)
             .unwrap();
@@ -261,6 +268,7 @@ mod tests {
         assert_eq!(decoded.font_family, AppFontFamily::SystemDefault);
         assert!(decoded.auto_check_updates);
         assert!(decoded.notify_new_version);
+        assert_eq!(decoded.docker_backend_id, None);
     }
 
     #[test]
