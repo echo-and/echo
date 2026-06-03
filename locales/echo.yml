@@ -631,8 +631,8 @@ settings:
     en: About
     zh-CN: 关于
   about_description:
-    en: A cross-platform Docker management tool for local sockets and remote Docker environments.
-    zh-CN: 一个跨平台 Docker 管理工具，用于管理本地 socket 和远端 Docker 环境。
+    en: A Lightweight, blazing-fast GUI for Docker
+    zh-CN: 轻量级图形化 Docker 管理界面
   links:
     en: Links
     zh-CN: 链接

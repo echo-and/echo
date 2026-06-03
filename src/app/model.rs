@@ -857,7 +857,9 @@ impl WorkspaceModel {
         cx.notify();
 
         self._update_check_task = Some(cx.spawn(async move |this, cx| {
-            let status = cx.background_spawn(updates::check_for_updates()).await;
+            let status = cx
+                .background_spawn(async { updates::check_for_updates_blocking() })
+                .await;
             let _ = this.update(cx, |model, cx| {
                 model.update_status = status;
                 cx.notify();

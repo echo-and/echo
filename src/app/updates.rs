@@ -7,6 +7,7 @@ use reqwest::{
 };
 use semver::Version;
 use serde::Deserialize;
+use tokio::runtime::Builder;
 
 pub const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const GITHUB_REPOSITORY_URL: &str = "https://github.com/echo-and/echo";
@@ -84,6 +85,18 @@ pub async fn check_for_updates() -> UpdateStatus {
             reason: UpdateUnavailableReason::NoRelease,
             checked_at,
         },
+        Err(_) => UpdateStatus::Unavailable {
+            reason: UpdateUnavailableReason::RequestFailed,
+            checked_at,
+        },
+    }
+}
+
+pub fn check_for_updates_blocking() -> UpdateStatus {
+    let checked_at = SystemTime::now();
+
+    match Builder::new_current_thread().enable_all().build() {
+        Ok(runtime) => runtime.block_on(check_for_updates()),
         Err(_) => UpdateStatus::Unavailable {
             reason: UpdateUnavailableReason::RequestFailed,
             checked_at,
