@@ -1,3 +1,5 @@
+#[cfg(target_os = "linux")]
+use std::panic::{self, AssertUnwindSafe};
 use std::time::Duration;
 
 use anyhow::{Context as _, Result};
@@ -6,7 +8,7 @@ use gpui_component::Root;
 use image::ImageFormat;
 use rust_i18n::t;
 use tray_icon::{
-    Icon, MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent,
+    Icon, MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent,
     menu::{Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem},
 };
 
@@ -22,6 +24,87 @@ const COLORED_TRAY_ICON: &[u8] =
     include_bytes!("../../assets/images/tray-icons/tray-windows-color.ico");
 
 pub fn install_tray(cx: &mut App) -> Result<()> {
+    let InstalledTray {
+        tray,
+        show_item_id,
+        quit_item_id,
+    } = create_platform_tray()?;
+    let task_show_item_id = show_item_id.clone();
+    let task_quit_item_id = quit_item_id.clone();
+    let tray_task = cx.spawn(async move |cx| {
+        loop {
+            handle_tray_events(&task_show_item_id, &task_quit_item_id, cx);
+            cx.background_executor()
+                .timer(TRAY_EVENT_POLL_INTERVAL)
+                .await;
+        }
+    });
+
+    cx.update_global::<AppServices, _>(|services, _| {
+        services.tray = Some(tray);
+        services.tray_show_item_id = Some(show_item_id);
+        services.tray_quit_item_id = Some(quit_item_id);
+        services._tray_task = Some(tray_task);
+    });
+
+    Ok(())
+}
+
+struct InstalledTray {
+    tray: TrayIcon,
+    show_item_id: MenuId,
+    quit_item_id: MenuId,
+}
+
+#[cfg(target_os = "linux")]
+fn create_platform_tray() -> Result<InstalledTray> {
+    let previous_hook = panic::take_hook();
+    panic::set_hook(Box::new(|_| {}));
+    let result = panic::catch_unwind(AssertUnwindSafe(|| {
+        initialize_linux_tray_runtime()?;
+        create_tray()
+    }));
+    panic::set_hook(previous_hook);
+
+    match result {
+        Ok(result) => result,
+        Err(payload) => anyhow::bail!(
+            "Linux tray initialization panicked: {}",
+            panic_payload_message(payload.as_ref())
+        ),
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn create_platform_tray() -> Result<InstalledTray> {
+    create_tray()
+}
+
+#[cfg(target_os = "linux")]
+fn initialize_linux_tray_runtime() -> Result<()> {
+    if gtk::is_initialized_main_thread() {
+        return Ok(());
+    }
+
+    if gtk::is_initialized() {
+        anyhow::bail!("GTK was initialized on another thread; Linux tray requires the main thread");
+    }
+
+    gtk::init().context("failed to initialize GTK for Linux tray")
+}
+
+#[cfg(target_os = "linux")]
+fn panic_payload_message(payload: &(dyn std::any::Any + Send)) -> String {
+    if let Some(message) = payload.downcast_ref::<&str>() {
+        (*message).to_string()
+    } else if let Some(message) = payload.downcast_ref::<String>() {
+        message.clone()
+    } else {
+        "unknown panic payload".to_string()
+    }
+}
+
+fn create_tray() -> Result<InstalledTray> {
     let menu = Menu::new();
     let show_item = MenuItem::with_id("echo.show", &t!("tray.show"), true, None);
     let quit_item = MenuItem::with_id("echo.quit", &t!("tray.quit"), true, None);
@@ -41,23 +124,11 @@ pub fn install_tray(cx: &mut App) -> Result<()> {
 
     let show_item_id = show_item.id().clone();
     let quit_item_id = quit_item.id().clone();
-    let tray_task = cx.spawn(async move |cx| {
-        loop {
-            handle_tray_events(&show_item_id, &quit_item_id, cx);
-            cx.background_executor()
-                .timer(TRAY_EVENT_POLL_INTERVAL)
-                .await;
-        }
-    });
-
-    cx.update_global::<AppServices, _>(|services, _| {
-        services.tray = Some(tray);
-        services.tray_show_item_id = Some(show_item.id().clone());
-        services.tray_quit_item_id = Some(quit_item.id().clone());
-        services._tray_task = Some(tray_task);
-    });
-
-    Ok(())
+    Ok(InstalledTray {
+        tray,
+        show_item_id,
+        quit_item_id,
+    })
 }
 
 pub fn open_echo_window(cx: &mut App) -> Result<WindowHandle<Root>> {
@@ -133,6 +204,8 @@ fn set_app_hidden(hidden: bool, cx: &mut App) {
 }
 
 fn handle_tray_events(show_item_id: &MenuId, quit_item_id: &MenuId, cx: &mut AsyncApp) {
+    pump_platform_tray_events();
+
     while let Ok(event) = TrayIconEvent::receiver().try_recv() {
         if should_show_for_tray_event(&event) {
             cx.update(handle_tray_left_click);
@@ -147,6 +220,20 @@ fn handle_tray_events(show_item_id: &MenuId, quit_item_id: &MenuId, cx: &mut Asy
         }
     }
 }
+
+#[cfg(target_os = "linux")]
+fn pump_platform_tray_events() {
+    if !gtk::is_initialized_main_thread() {
+        return;
+    }
+
+    while gtk::events_pending() {
+        gtk::main_iteration_do(false);
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn pump_platform_tray_events() {}
 
 fn should_show_for_tray_event(event: &TrayIconEvent) -> bool {
     matches!(

@@ -64,13 +64,13 @@ jobs:
             libvulkan1 \
             libwayland-dev \
             libx11-xcb-dev \
-            libxdo-dev \
             libxkbcommon-x11-dev \
             libzstd-dev \
             lld \
             llvm \
             make \
-            pkg-config
+            pkg-config \
+            xvfb
 
       - name: Cache Cargo
         uses: actions/cache@v5
@@ -189,6 +189,30 @@ jobs:
             (cd dist && 7z a "${artifact}.zip" "${artifact}")
           else
             tar -C dist -czf "dist/${artifact}.tar.gz" "${artifact}"
+          fi
+
+      - name: Smoke test Linux package
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          artifact="echo-${tag}-${{ matrix.target }}"
+          exe="dist/${artifact}/bin/echo"
+          smoke_log="$(mktemp)"
+
+          set +e
+          timeout 8s xvfb-run -a "${exe}" >"${smoke_log}" 2>&1
+          status=$?
+          set -e
+
+          cat "${smoke_log}"
+          if [[ "${status}" -ne 0 && "${status}" -ne 124 ]]; then
+            exit "${status}"
+          fi
+
+          if grep -E "panicked|GTK has not been initialized" "${smoke_log}"; then
+            exit 1
           fi
 
       - name: Upload workflow artifact

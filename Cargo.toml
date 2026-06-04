@@ -1,6 +1,6 @@
 [package]
 name = "echo"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2024"
 license = "BUSL-1.1"
 description = "A lightweight desktop app for managing local Docker environments."
@@ -40,4 +40,7 @@ rust-i18n = "4"
 time = { version = "0.3.44", features = ["formatting"] }
 tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros", "sync", "time", "fs", "io-util"] }
 tokio-util = { version = "0.7.18", features = ["io"] }
-tray-icon = "0.24.0"
+tray-icon = { version = "0.24.0", default-features = false, features = ["gtk"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18.2"

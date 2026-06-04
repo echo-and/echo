@@ -37,6 +37,14 @@ Echo currently ships as unsigned portable archives:
 
 The MVP release does not include installers, code signing, or notarization yet. On macOS and Windows, your operating system may show an unsigned-app warning.
 
+Linux archives are portable app bundles, not distro packages. Install the GTK 3 and appindicator runtime libraries provided by your distribution before running Echo. On Debian, Ubuntu, or Linux Mint:
+
+```sh
+sudo apt install libgtk-3-0 libayatana-appindicator3-1
+```
+
+Some older distributions provide `libappindicator3-1` instead of `libayatana-appindicator3-1`.
+
 Manual validation has currently been completed only on macOS. Linux and Windows builds are still being refined and have not yet gone through the same level of manual runtime verification.
 
 ### Prerequisites
