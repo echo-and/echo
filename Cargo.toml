@@ -1,6 +1,6 @@
 [package]
 name = "echo"
-version = "0.1.5"
+version = "0.1.6"
 edition = "2024"
 license = "BUSL-1.1"
 description = "A lightweight desktop app for managing local Docker environments."

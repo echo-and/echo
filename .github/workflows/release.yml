@@ -54,6 +54,7 @@ jobs:
             g++ \
             gettext-base \
             git \
+            imagemagick \
             jq \
             libasound2-dev \
             libayatana-appindicator3-dev \
@@ -179,13 +180,13 @@ jobs:
 
             mkdir -p "${app_dir}/usr/bin" \
               "${app_dir}/usr/share/applications" \
-              "${app_dir}/usr/share/icons/hicolor/1024x1024/apps" \
+              "${app_dir}/usr/share/icons/hicolor/512x512/apps" \
               "${app_dir}/usr/share/doc/echo"
             cp "target/${{ matrix.target }}/release/echo" "${app_dir}/usr/bin/echo"
             chmod +x "${app_dir}/usr/bin/echo"
             cp assets/linux/echo.desktop "${app_dir}/usr/share/applications/echo.desktop"
-            cp assets/images/Icon.png "${app_dir}/usr/share/icons/hicolor/1024x1024/apps/echo.png"
-            cp assets/images/Icon.png "${icon_file}"
+            convert assets/images/Icon.png -resize 512x512 "${icon_file}"
+            cp "${icon_file}" "${app_dir}/usr/share/icons/hicolor/512x512/apps/echo.png"
             cp README.md LICENSE CHANGELOG.md "${app_dir}/usr/share/doc/echo/"
 
             curl -fsSL \
