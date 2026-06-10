@@ -12,6 +12,8 @@ mod theme;
 mod volumes;
 
 use gpui::*;
+#[cfg(target_os = "linux")]
+use gpui_component::TitleBar;
 use gpui_component::{
     Icon, Root, Sizable as _, StyledExt as _,
     button::Button,
@@ -21,6 +23,10 @@ use gpui_component::{
 use rust_i18n::t;
 use std::rc::Rc;
 
+#[cfg(target_os = "linux")]
+use crate::app::hide_echo_window_from_window;
+#[cfg(target_os = "linux")]
+use crate::ui::theme::theme_border;
 use crate::{
     app::{AppFontFamily, EchoApp, MAX_CONTAINER_LIST_WIDTH, MIN_CONTAINER_LIST_WIDTH, NavSection},
     ui::{
@@ -66,6 +72,7 @@ impl Render for EchoApp {
             .flex()
             .flex_col()
             .overflow_hidden()
+            .children(linux_window_chrome(window, &snapshot))
             .child(
                 h_flex()
                     .flex_1()
@@ -78,6 +85,38 @@ impl Render for EchoApp {
             .children(Root::render_sheet_layer(window, cx))
             .children(Root::render_notification_layer(window, cx))
     }
+}
+
+#[cfg(target_os = "linux")]
+fn linux_window_chrome(window: &mut Window, snapshot: &WorkspaceSnapshot) -> Option<AnyElement> {
+    if matches!(window.window_decorations(), Decorations::Client { .. }) {
+        Some(
+            TitleBar::new()
+                .on_close_window(|_, window, cx| hide_echo_window_from_window(window, cx))
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .text_sm()
+                        .font_medium()
+                        .child(t!("app.title").to_string()),
+                )
+                .into_any_element(),
+        )
+    } else {
+        Some(
+            div()
+                .h(px(1.))
+                .flex_shrink_0()
+                .bg(theme_border(snapshot.theme_mode))
+                .into_any_element(),
+        )
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn linux_window_chrome(_: &mut Window, _: &WorkspaceSnapshot) -> Option<AnyElement> {
+    None
 }
 
 fn main_content(

@@ -5,4 +5,6 @@ Comment=Manage local Docker environments
 Exec=echo
 Icon=echo
 Terminal=false
+StartupNotify=true
+StartupWMClass=echo
 Categories=Development;

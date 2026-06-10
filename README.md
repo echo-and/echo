@@ -29,15 +29,22 @@
 
 MVP builds are published on the [GitHub Releases](https://github.com/echo-and/echo/releases) page.
 
-Echo currently ships as unsigned portable archives:
+Echo currently ships as unsigned portable builds:
 
 - macOS: `echo-*-apple-darwin.tar.gz`
-- Linux: `echo-*-unknown-linux-gnu.tar.gz`
+- Linux: `echo-*-unknown-linux-gnu.AppImage`
 - Windows: `echo-*-windows-msvc.zip`
 
 The MVP release does not include installers, code signing, or notarization yet. On macOS and Windows, your operating system may show an unsigned-app warning.
 
-Linux archives are portable app bundles, not distro packages. Install the GTK 3 and appindicator runtime libraries provided by your distribution before running Echo. On Debian, Ubuntu, or Linux Mint:
+Linux builds ship as AppImage files. Make the downloaded file executable, then run it directly:
+
+```sh
+chmod +x echo-*-unknown-linux-gnu.AppImage
+./echo-*-unknown-linux-gnu.AppImage
+```
+
+If your desktop environment does not show the tray icon or appindicator integration, install the GTK 3 and appindicator runtime libraries provided by your distribution. On Debian, Ubuntu, or Linux Mint:
 
 ```sh
 sudo apt install libgtk-3-0 libayatana-appindicator3-1

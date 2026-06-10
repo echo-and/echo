@@ -14,6 +14,7 @@ pub(super) fn apply_echo_theme_overrides(cx: &mut App) {
     }
     theme.border = border;
     theme.input = border;
+    theme.title_bar_border = border;
     theme.ring = theme_focus_border(mode);
     theme.tab_bar = if mode.is_dark() {
         hsla(0.0, 0.0, 0.192, 1.0)

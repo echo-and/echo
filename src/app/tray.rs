@@ -1,5 +1,7 @@
 #[cfg(target_os = "linux")]
 use std::panic::{self, AssertUnwindSafe};
+#[cfg(target_os = "linux")]
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context as _, Result};
@@ -16,6 +18,10 @@ use crate::app::{AppServices, EchoApp};
 use crate::ui::{apply_echo_font_preference, apply_echo_theme_overrides};
 
 const TRAY_EVENT_POLL_INTERVAL: Duration = Duration::from_millis(100);
+#[cfg(target_os = "linux")]
+const LINUX_APP_ID: &str = "echo";
+#[cfg(target_os = "linux")]
+const LINUX_WINDOW_ICON: &[u8] = include_bytes!("../../assets/images/Icon.png");
 #[cfg(target_os = "macos")]
 const MACOS_TRAY_ICON: &[u8] =
     include_bytes!("../../assets/images/tray-icons/tray-macos-template.png");
@@ -132,21 +138,16 @@ fn create_tray() -> Result<InstalledTray> {
 }
 
 pub fn open_echo_window(cx: &mut App) -> Result<WindowHandle<Root>> {
-    let window_options = WindowOptions {
-        window_bounds: Some(WindowBounds::centered(size(px(1080.), px(722.)), cx)),
-        titlebar: Some(TitlebarOptions {
-            title: Some(t!("app.title").to_string().into()),
-            appears_transparent: true,
-            traffic_light_position: Some(point(px(8.), px(8.))),
-        }),
-        ..Default::default()
-    };
+    let window_options = echo_window_options(cx);
 
     let window = cx.open_window(window_options, |window, cx| {
-        window.on_window_should_close(cx, |_, cx| {
-            hide_echo_window(cx);
+        window.on_window_should_close(cx, |window, cx| {
+            hide_echo_window_from_window(window, cx);
             false
         });
+
+        #[cfg(target_os = "linux")]
+        window.set_window_title(&t!("app.title"));
 
         let view = cx.new(|cx| EchoApp::new(window, cx));
         let (theme_mode, font_family) = view
@@ -169,8 +170,79 @@ pub fn open_echo_window(cx: &mut App) -> Result<WindowHandle<Root>> {
     Ok(window)
 }
 
+fn echo_window_options(cx: &mut App) -> WindowOptions {
+    let mut options = WindowOptions {
+        window_bounds: Some(WindowBounds::centered(size(px(1080.), px(722.)), cx)),
+        titlebar: Some(TitlebarOptions {
+            title: Some(t!("app.title").to_string().into()),
+            appears_transparent: true,
+            traffic_light_position: Some(point(px(8.), px(8.))),
+        }),
+        ..Default::default()
+    };
+
+    configure_linux_window_options(&mut options);
+    options
+}
+
+#[cfg(target_os = "linux")]
+fn configure_linux_window_options(options: &mut WindowOptions) {
+    options.window_decorations = Some(WindowDecorations::Client);
+    options.app_id = Some(LINUX_APP_ID.to_string());
+    options.icon = linux_window_icon();
+}
+
+#[cfg(not(target_os = "linux"))]
+fn configure_linux_window_options(_: &mut WindowOptions) {}
+
+#[cfg(target_os = "linux")]
+fn linux_window_icon() -> Option<Arc<image::RgbaImage>> {
+    match image::load_from_memory_with_format(LINUX_WINDOW_ICON, ImageFormat::Png) {
+        Ok(image) => Some(Arc::new(image.into_rgba8())),
+        Err(error) => {
+            eprintln!("failed to decode Linux window icon: {error:#}");
+            None
+        }
+    }
+}
+
+pub fn hide_echo_window_from_window(window: &mut Window, cx: &mut App) {
+    set_app_hidden(true, cx);
+    hide_platform_echo_window_from_window(window, cx);
+}
+
 pub fn hide_echo_window(cx: &mut App) {
     set_app_hidden(true, cx);
+    hide_platform_echo_window(cx);
+}
+
+#[cfg(target_os = "linux")]
+fn hide_platform_echo_window_from_window(window: &mut Window, cx: &mut App) {
+    cx.update_global::<AppServices, _>(|services, _| {
+        services.window = None;
+    });
+    window.remove_window();
+}
+
+#[cfg(not(target_os = "linux"))]
+fn hide_platform_echo_window_from_window(_: &mut Window, cx: &mut App) {
+    cx.hide();
+}
+
+#[cfg(target_os = "linux")]
+fn hide_platform_echo_window(cx: &mut App) {
+    let window = cx.global::<AppServices>().window;
+    cx.update_global::<AppServices, _>(|services, _| {
+        services.window = None;
+    });
+
+    if let Some(window) = window {
+        let _ = window.update(cx, |_, window, _| window.remove_window());
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn hide_platform_echo_window(cx: &mut App) {
     cx.hide();
 }
 
@@ -180,6 +252,12 @@ pub fn show_echo_window(cx: &mut App) {
 
     if let Some(window) = window {
         activate_echo_window(window, cx);
+    } else {
+        #[cfg(target_os = "linux")]
+        if let Err(error) = open_echo_window(cx) {
+            set_app_hidden(true, cx);
+            eprintln!("failed to reopen Echo window: {error:#}");
+        }
     }
 }
 
